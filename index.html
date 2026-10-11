@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>World Cup Mandarin Challenge - 舅舅是园丁</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Penalty Shootout -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tone.js for Audio Synthesizer Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@600;700&family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            overflow: hidden;
+            background-color: #0b132b;
+            color: #ffffff;
+        }
+        
+        .font-stadium {
+            font-family: 'Teko', sans-serif;
+            letter-spacing: 1px;
+        }
+
+        /* Glassmorphism styling */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Animated Stadium Turf Glow */
+        .glow-gold {
+            box-shadow: 0 0 25px rgba(234, 179, 8, 0.6);
+        }
+
+        .glow-green {
+            box-shadow: 0 0 25px rgba(34, 197, 94, 0.6);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3b82f6;
+            border-radius: 4px;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        .animate-pulse-ring {
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative bg-slate-950 text-white select-none">
+
+    <!-- Canvas Container for Three.js 3D Stadium -->
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer" class="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none p-4 md:p-6">
+        
+        <!-- TOP HUD: Score, Turn, Team Info -->
+        <header id="hud-top" class="hidden flex justify-between items-center w-full max-w-4xl mx-auto pointer-events-auto">
+            <div class="glass-panel rounded-2xl px-5 py-2.5 flex items-center space-x-3">
+                <span id="hud-flag" class="text-3xl">🇧🇷</span>
+                <div>
+                    <div id="hud-player-name" class="font-bold text-sm tracking-wide text-yellow-400">PLAYER</div>
+                    <div id="hud-team-name" class="text-xs text-slate-300 uppercase">BRAZIL</div>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl px-6 py-2 text-center">
+                <div class="text-xs uppercase tracking-widest text-emerald-400 font-semibold">ROUND</div>
+                <div class="font-stadium text-3xl font-bold leading-none text-white"><span id="hud-round">1</span> / 5</div>
+            </div>
+
+            <div class="glass-panel rounded-2xl px-6 py-2 text-right">
+                <div class="text-xs uppercase tracking-widest text-yellow-400 font-semibold">TOTAL SCORE</div>
+                <div id="hud-score" class="font-stadium text-4xl font-extrabold leading-none text-amber-400">0</div>
+            </div>
+        </header>
+
+        <!-- SWIPE GUIDE overlay (Visible during penalty shot phase) -->
+        <div id="swipe-instruction" class="hidden text-center my-auto pointer-events-none animate-pulse-ring">
+            <div class="glass-panel inline-block px-8 py-4 rounded-3xl border border-yellow-400/40">
+                <i class="fa-solid fa-hand-pointer text-4xl text-yellow-400 mb-2"></i>
+                <h3 class="font-stadium text-3xl font-bold tracking-wider text-yellow-300">SWIPE UP TO SHOOT!</h3>
+                <p class="text-xs text-slate-200">Aim for the corners to beat the goalkeeper!</p>
+            </div>
+        </div>
+
+        <!-- BOTTOM CONTROLS / NOTICES -->
+        <div id="hud-bottom" class="hidden w-full max-w-xl mx-auto text-center pointer-events-auto pb-4">
+            <div id="shot-result-banner" class="hidden glass-panel py-3 px-6 rounded-2xl font-stadium text-3xl font-bold tracking-wide transition-all">
+                <!-- Result text will be injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- SCREEN 1: REGISTRATION & TEAM SELECTION -->
+    <div id="modal-register" class="absolute inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        <div class="glass-card relative w-full max-w-lg rounded-3xl p-6 md:p-8 space-y-6 border border-yellow-500/30">
+            <!-- Hidden Admin Panel Trigger -->
+            <button onclick="openAdminModal()" title="Admin Settings" class="absolute top-5 right-5 text-slate-400 hover:text-yellow-400 transition-colors p-2 rounded-xl bg-slate-900/60 border border-slate-700/60 hover:border-yellow-400">
+                <i class="fa-solid fa-user-gear text-base"></i>
+            </button>
+
+            <div class="text-center">
+                <div class="inline-flex items-center space-x-2 bg-yellow-500/10 px-4 py-1.5 rounded-full border border-yellow-500/30 mb-3">
+                    <i class="fa-solid fa-trophy text-yellow-400"></i>
+                    <span class="text-xs font-bold text-yellow-300 tracking-wider uppercase">Year 4 Mandarin Cup</span>
+                </div>
+                <h1 class="font-stadium text-4xl md:text-5xl font-extrabold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500">
+                    WORLD CUP PENALTY
+                </h1>
+                <p class="text-sm text-slate-300 mt-1">Topic: 舅舅是园丁 (Uncle is a Gardener)</p>
+            </div>
+
+            <!-- Registration Form for Students -->
+            <form id="form-register" onsubmit="startGame(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-300 mb-1">Player Name</label>
+                    <input type="text" id="input-player-name" required placeholder="Enter your name..." 
+                        class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400 transition-colors">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-300 mb-2">Choose National Team</label>
+                    <div id="team-selector" class="grid grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-1">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 rounded-xl font-bold text-lg text-white shadow-lg glow-green transition-all transform active:scale-98 flex items-center justify-center space-x-2 mt-2 cursor-pointer">
+                    <i class="fa-solid fa-futbol"></i>
+                    <span>KICK OFF MATCH</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCREEN 2: MANDARIN SENTENCE QUIZ MODAL -->
+    <div id="modal-quiz" class="hidden absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-lg">
+        <div class="glass-card w-full max-w-2xl rounded-3xl p-6 md:p-8 space-y-5 border border-emerald-500/30">
+            
+            <!-- Quiz Header & Goal Multiplier Banner -->
+            <div class="flex justify-between items-center border-b border-slate-700/80 pb-3">
+                <div>
+                    <span id="quiz-shot-status" class="px-3 py-1 rounded-full text-xs font-extrabold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                        <i class="fa-solid fa-circle-check"></i> GOAL SCORED!
+                    </span>
+                    <h2 class="text-lg font-bold text-white mt-1">Arrange Words into a Sentence</h2>
+                </div>
+                <div class="text-right">
+                    <div id="multiplier-badge" class="font-stadium text-2xl font-bold text-yellow-400">
+                        SCORE MULTIPLIER: <span class="text-3xl text-yellow-300">2x</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quiz Target Translation Prompt Box -->
+            <div id="quiz-translation-box" class="bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 border border-yellow-500/40 rounded-2xl p-3 text-center">
+                <span class="text-[11px] font-bold uppercase text-yellow-400 tracking-wider block mb-0.5"><i class="fa-solid fa-language mr-1"></i> Sentence Meaning in English:</span>
+                <span id="quiz-translation-text" class="text-base md:text-lg font-bold text-yellow-200">"The gardener is pulling weeds."</span>
+            </div>
+
+            <!-- Quiz Main Section -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 items-center">
+                <!-- SVG Illustration display -->
+                <div id="quiz-illustration-container" class="bg-slate-900/80 rounded-2xl p-3 border border-slate-700/60 flex flex-col items-center justify-center min-h-[160px]">
+                    <!-- Embedded SVG vector injected by JS -->
+                </div>
+
+                <!-- Word Construction Zone -->
+                <div class="md:col-span-2 space-y-4">
+                    <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 min-h-[85px] flex flex-wrap items-center gap-2" id="answer-dropzone">
+                        <!-- Constructed words will go here -->
+                        <span id="placeholder-text" class="text-slate-500 italic text-xs">Tap word blocks below to form the sentence...</span>
+                    </div>
+
+                    <!-- Available Word Chips -->
+                    <div>
+                        <div class="text-xs uppercase text-slate-400 font-semibold mb-2">Word Choices (Select & Arrange):</div>
+                        <div id="word-pool" class="flex flex-wrap gap-2.5 min-h-[65px] items-center">
+                            <!-- Dynamic word blocks with pinyin injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-700/80">
+                <button onclick="resetWordSelection()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all">
+                    <i class="fa-solid fa-rotate-left"></i> RESET
+                </button>
+                <button onclick="submitQuizAnswer()" class="px-8 py-3 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 rounded-xl font-bold text-slate-950 text-base shadow-lg glow-gold transition-all transform active:scale-95">
+                    SUBMIT ANSWER <i class="fa-solid fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCREEN 3: GAME OVER / MATCH RESULTS -->
+    <div id="modal-gameover" class="hidden absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+        <div class="glass-card w-full max-w-lg rounded-3xl p-6 md:p-8 space-y-6 text-center border border-yellow-500/40">
+            <div>
+                <i class="fa-solid fa-trophy text-5xl text-yellow-400 mb-2 animate-bounce"></i>
+                <h2 class="font-stadium text-4xl md:text-5xl font-extrabold tracking-wider text-yellow-300">FULL TIME!</h2>
+                <p class="text-sm text-slate-300">World Cup Mandarin Challenge Complete</p>
+            </div>
+
+            <!-- Match Stats Summary -->
+            <div class="grid grid-cols-2 gap-3 bg-slate-900/80 p-4 rounded-2xl border border-slate-800 text-left">
+                <div>
+                    <div class="text-xs text-slate-400 uppercase font-semibold">Player</div>
+                    <div id="summary-player" class="font-bold text-yellow-400 truncate">NAME</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-400 uppercase font-semibold">Team</div>
+                    <div id="summary-team" class="font-bold text-white truncate">TEAM</div>
+                </div>
+                <div class="mt-2">
+                    <div class="text-xs text-slate-400 uppercase font-semibold">Goals Scored</div>
+                    <div id="summary-goals" class="font-bold text-emerald-400 text-lg">0 / 5</div>
+                </div>
+                <div class="mt-2">
+                    <div class="text-xs text-slate-400 uppercase font-semibold">Quiz Accuracy</div>
+                    <div id="summary-quiz" class="font-bold text-emerald-400 text-lg">0 / 5</div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 p-4 rounded-2xl border border-yellow-500/30">
+                <div class="text-xs font-bold uppercase text-yellow-300 tracking-wider">Final Match Score</div>
+                <div id="summary-final-score" class="font-stadium text-6xl font-extrabold text-amber-400 leading-none mt-1">0</div>
+            </div>
+
+            <!-- Webhook Sync Status Indicator -->
+            <div id="sync-status" class="text-xs text-slate-400 py-1">
+                <i class="fa-solid fa-spinner fa-spin"></i> Saving score to Live Sheet...
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="restartMatch()" class="flex-1 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 rounded-xl font-bold text-white transition-all shadow-md">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> PLAY AGAIN
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCREEN 4: ADMIN PANEL MODAL (Password Protected: admin123) -->
+    <div id="modal-admin" class="hidden absolute inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl">
+        <div class="glass-card w-full max-w-2xl rounded-3xl p-6 md:p-8 space-y-6 border border-yellow-500/40 text-slate-200">
+            
+            <div class="flex justify-between items-center border-b border-slate-700/80 pb-3">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-user-shield text-yellow-400 text-xl"></i>
+                    <h3 class="text-xl font-bold text-white">Teacher Admin Panel</h3>
+                </div>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <!-- Password Form View -->
+            <div id="admin-auth-view" class="space-y-4 py-4 max-w-md mx-auto text-center">
+                <i class="fa-solid fa-lock text-4xl text-yellow-400 mb-2"></i>
+                <h4 class="text-lg font-bold text-white">Enter Admin Password</h4>
+                <p class="text-xs text-slate-400">Access live scoreboard and Google Sheet webhook settings.</p>
+                <form onsubmit="verifyAdminPassword(event)" class="space-y-3">
+                    <input type="password" id="input-admin-pass" required placeholder="Enter password..."
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-center text-white focus:outline-none focus:border-yellow-400">
+                    <p id="admin-error-msg" class="text-xs text-rose-400 hidden">Incorrect password. Please try again.</p>
+                    <button type="submit" class="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-slate-950 rounded-xl font-bold text-sm shadow-md transition-all">
+                        UNLOCK PANEL
+                    </button>
+                </form>
+            </div>
+
+            <!-- Main Admin Dashboard View -->
+            <div id="admin-dashboard-view" class="hidden space-y-6">
+                <!-- Google Sheet Setup Section -->
+                <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold uppercase text-yellow-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-link"></i> Google Sheet Webhook URL
+                        </label>
+                        <button type="button" onclick="openSheetModal()" class="text-xs text-emerald-400 hover:underline flex items-center gap-1">
+                            <i class="fa-solid fa-circle-question"></i> Setup Instructions
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="url" id="admin-webhook-url" placeholder="https://script.google.com/macros/s/.../exec"
+                            class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-400">
+                        <button onclick="saveAdminWebhook()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all">
+                            SAVE URL
+                        </button>
+                    </div>
+                </div>
+
+                <!-- In-App Live Scoreboard -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-list-ol text-yellow-400"></i> Live Game Scoreboard (<span id="admin-record-count">0</span>)
+                        </h4>
+                        <button onclick="clearAdminScoreboard()" class="text-xs text-rose-400 hover:underline">Clear History</button>
+                    </div>
+
+                    <div class="max-h-60 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/80">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-900 text-slate-400 uppercase font-semibold text-[10px] sticky top-0">
+                                <tr>
+                                    <th class="p-2.5">Player</th>
+                                    <th class="p-2.5">Team</th>
+                                    <th class="p-2.5 text-center">Goals</th>
+                                    <th class="p-2.5 text-center">Accuracy</th>
+                                    <th class="p-2.5 text-right">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-scoreboard-body" class="divide-y divide-slate-800/60">
+                                <tr>
+                                    <td colspan="5" class="p-4 text-center text-slate-500 italic">No games played yet in this session.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- GOOGLE SHEET SETUP TUTORIAL MODAL -->
+    <div id="modal-sheet-setup" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+        <div class="glass-card w-full max-w-2xl rounded-3xl p-6 md:p-8 space-y-4 border border-emerald-500/30 text-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-700/80 pb-3">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-file-csv text-emerald-400"></i> Google Sheet Webhook Setup
+                </h3>
+                <button onclick="closeSheetModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <ol class="list-decimal list-inside space-y-2 text-xs text-slate-300">
+                <li>Create a new Google Sheet.</li>
+                <li>Go to <strong>Extensions &gt; Apps Script</strong>.</li>
+                <li>Paste the script below into the Apps Script editor:</li>
+            </ol>
+            <pre id="apps-script-code" class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] font-mono text-emerald-400 overflow-x-auto">function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = JSON.parse(e.postData.contents);
+  sheet.appendRow([new Date(), data.playerName, data.team, data.score, data.goals, data.accuracy]);
+  return ContentService.createTextOutput("Success");
+}</pre>
+            <div class="flex justify-between items-center pt-2">
+                <button onclick="copyAppsScriptCode()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-yellow-400 rounded-xl text-xs font-bold transition-all">
+                    <i class="fa-solid fa-copy mr-1"></i> Copy Code
+                </button>
+                <button onclick="closeSheetModal()" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TEAMS = [
+            { id: 'brazil', name: 'Brazil', flag: '🇧🇷' },
+            { id: 'argentina', name: 'Argentina', flag: '🇦🇷' },
+            { id: 'france', name: 'France', flag: '🇫🇷' },
+            { id: 'germany', name: 'Germany', flag: '🇩🇪' },
+            { id: 'japan', name: 'Japan', flag: '🇯🇵' },
+            { id: 'malaysia', name: 'Malaysia', flag: '🇲🇾' }
+        ];
+
+        // Updated sentence translations and interface prompts to English for easy understanding
+        const MANDARIN_QUIZ = [
+            {
+                id: 'weeding',
+                targetActivity: '拔野草',
+                pinyinActivity: 'bá yě cǎo',
+                translation: 'The gardener is pulling weeds.',
+                fullSentence: ['园丁', '在', '拔野草'],
+                tokens: [
+                    { hanzi: '园丁', pinyin: 'yuán dīng' },
+                    { hanzi: '在', pinyin: 'zài' },
+                    { hanzi: '拔野草', pinyin: 'bá yě cǎo' }
+                ],
+                distractors: [
+                    { hanzi: '浇水', pinyin: 'jiāo shuǐ' },
+                    { hanzi: '睡觉', pinyin: 'shuì jiào' }
+                ],
+                svgIcon: `<svg viewBox="0 0 120 120" class="w-24 h-24">
+                    <rect width="120" height="120" rx="20" fill="#1e293b"/>
+                    <!-- Dark Soil -->
+                    <path d="M10 90 Q 60 85 110 90 L110 110 L10 110 Z" fill="#78350f"/>
+                    <!-- Grass / Weeds being pulled -->
+                    <path d="M40 88 C35 60 20 45 15 35 C25 45 40 55 45 88 Z" fill="#ef4444"/>
+                    <path d="M50 88 C50 50 40 30 30 20 C45 35 55 55 55 88 Z" fill="#22c55e"/>
+                    <path d="M60 88 C65 55 80 40 90 25 C80 45 70 60 65 88 Z" fill="#16a34a"/>
+                    <!-- Pulling Action Arrow -->
+                    <path d="M55 25 L55 5 M50 12 L55 5 L60 12" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>`
+            },
+            {
+                id: 'fertilizing',
+                targetActivity: '施肥',
+                pinyinActivity: 'shī féi',
+                translation: 'The gardener is fertilizing the plants.',
+                fullSentence: ['园丁', '在', '施肥'],
+                tokens: [
+                    { hanzi: '园丁', pinyin: 'yuán dīng' },
+                    { hanzi: '在', pinyin: 'zài' },
+                    { hanzi: '施肥', pinyin: 'shī féi' }
+                ],
+                distractors: [
+                    { hanzi: '松土', pinyin: 'sōng tǔ' },
+                    { hanzi: '看书', pinyin: 'kàn shū' }
+                ],
+                svgIcon: `<svg viewBox="0 0 120 120" class="w-24 h-24">
+                    <rect width="120" height="120" rx="20" fill="#1e293b"/>
+                    <!-- Plant Pot & Plant -->
+                    <path d="M45 100 L75 100 L80 75 L40 75 Z" fill="#d97706"/>
+                    <path d="M60 75 L60 50" stroke="#15803d" stroke-width="4"/>
+                    <path d="M60 60 C45 50 45 35 60 35 C75 35 75 50 60 60 Z" fill="#22c55e"/>
+                    <!-- Fertilizer Bag -->
+                    <rect x="20" y="20" width="30" height="40" rx="4" fill="#10b981"/>
+                    <text x="35" y="45" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">NPK</text>
+                    <!-- Falling Fertilizer Granules -->
+                    <circle cx="55" cy="30" r="3" fill="#f59e0b"/>
+                    <circle cx="62" cy="25" r="2.5" fill="#f59e0b"/>
+                    <circle cx="50" cy="40" r="3" fill="#f59e0b"/>
+                    <circle cx="68" cy="38" r="2.5" fill="#f59e0b"/>
+                </svg>`
+            },
+            {
+                id: 'watering',
+                targetActivity: '浇水',
+                pinyinActivity: 'jiāo shuǐ',
+                translation: 'The gardener is watering the plants.',
+                fullSentence: ['园丁', '在', '浇水'],
+                tokens: [
+                    { hanzi: '园丁', pinyin: 'yuán dīng' },
+                    { hanzi: '在', pinyin: 'zài' },
+                    { hanzi: '浇水', pinyin: 'jiāo shuǐ' }
+                ],
+                distractors: [
+                    { hanzi: '种花', pinyin: 'zhòng huā' },
+                    { hanzi: '跑步', pinyin: 'pǎo bù' }
+                ],
+                svgIcon: `<svg viewBox="0 0 120 120" class="w-24 h-24">
+                    <rect width="120" height="120" rx="20" fill="#1e293b"/>
+                    <!-- Soil & Flower -->
+                    <path d="M10 95 Q 60 90 110 95 L110 110 L10 110 Z" fill="#78350f"/>
+                    <path d="M80 95 L80 65" stroke="#15803d" stroke-width="4"/>
+                    <circle cx="80" cy="55" r="10" fill="#f43f5e"/>
+                    <circle cx="80" cy="55" r="4" fill="#fef08a"/>
+                    <!-- Watering Can -->
+                    <path d="M20 40 L45 40 L50 65 L25 65 Z" fill="#0284c7"/>
+                    <path d="M45 45 L65 30" stroke="#0284c7" stroke-width="5" stroke-linecap="round"/>
+                    <path d="M20 45 C10 45 10 60 20 60" stroke="#0284c7" stroke-width="4" fill="none"/>
+                    <!-- Water Drops -->
+                    <circle cx="68" cy="40" r="2" fill="#38bdf8"/>
+                    <circle cx="73" cy="48" r="2.5" fill="#38bdf8"/>
+                    <circle cx="78" cy="56" r="2" fill="#38bdf8"/>
+                </svg>`
+            },
+            {
+                id: 'planting',
+                targetActivity: '种花',
+                pinyinActivity: 'zhòng huā',
+                translation: 'The gardener is planting flowers.',
+                fullSentence: ['园丁', '在', '种花'],
+                tokens: [
+                    { hanzi: '园丁', pinyin: 'yuán dīng' },
+                    { hanzi: '在', pinyin: 'zài' },
+                    { hanzi: '种花', pinyin: 'zhòng huā' }
+                ],
+                distractors: [
+                    { hanzi: '拔野草', pinyin: 'bá yě cǎo' },
+                    { hanzi: '吃面', pinyin: 'chī miàn' }
+                ],
+                svgIcon: `<svg viewBox="0 0 120 120" class="w-24 h-24">
+                    <rect width="120" height="120" rx="20" fill="#1e293b"/>
+                    <!-- Flower Pot -->
+                    <path d="M35 102 L85 102 L92 60 L28 60 Z" fill="#ea580c"/>
+                    <rect x="24" y="52" width="72" height="10" rx="2" fill="#c2410c"/>
+                    <!-- Beautiful Flower -->
+                    <path d="M60 52 L60 30" stroke="#16a34a" stroke-width="4"/>
+                    <circle cx="60" cy="22" r="7" fill="#facc15"/>
+                    <circle cx="60" cy="10" r="6" fill="#ec4899"/>
+                    <circle cx="60" cy="34" r="6" fill="#ec4899"/>
+                    <circle cx="48" cy="22" r="6" fill="#ec4899"/>
+                    <circle cx="72" cy="22" r="6" fill="#ec4899"/>
+                </svg>`
+            },
+            {
+                id: 'loosening_soil',
+                targetActivity: '松土',
+                pinyinActivity: 'sōng tǔ',
+                translation: 'The gardener is loosening the soil.',
+                fullSentence: ['园丁', '在', '松土'],
+                tokens: [
+                    { hanzi: '园丁', pinyin: 'yuán dīng' },
+                    { hanzi: '在', pinyin: 'zài' },
+                    { hanzi: '松土', pinyin: 'sōng tǔ' }
+                ],
+                distractors: [
+                    { hanzi: '施肥', pinyin: 'shī féi' },
+                    { hanzi: '唱歌', pinyin: 'chàng gē' }
+                ],
+                svgIcon: `<svg viewBox="0 0 120 120" class="w-24 h-24">
+                    <rect width="120" height="120" rx="20" fill="#1e293b"/>
+                    <!-- Loose Soil mounds -->
+                    <path d="M15 85 Q 35 70 55 85 T 95 85 T 115 95 L115 110 L15 110 Z" fill="#92400e"/>
+                    <circle cx="30" cy="80" r="3" fill="#b45309"/>
+                    <circle cx="75" cy="82" r="4" fill="#b45309"/>
+                    <!-- Gardening Rake / Trowel Tool -->
+                    <path d="M30 20 L75 65" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+                    <path d="M70 55 L85 70 L65 75 Z" fill="#64748b"/>
+                    <!-- Small Sprout -->
+                    <path d="M45 80 Q 40 65 48 58 Q 55 65 50 80 Z" fill="#4ade80"/>
+                </svg>`
+            }
+        ];
+
+        let gameState = {
+            playerName: '',
+            selectedTeam: TEAMS[0],
+            webhookUrl: 'https://script.google.com/macros/s/AKfycbxIQzATtQEg7XWW4pWM3-Jg52AxETA_CYmzf8s6hjkT884QOtLjgbIJwKedWu2CbaES/exec',
+            currentRound: 0,
+            score: 0,
+            goalsScored: 0,
+            correctQuizCount: 0,
+            isShotTaken: false,
+            lastShotScored: false,
+            userConstructedSentence: [],
+            leaderboard: [] // Admin session scoreboard cache
+        };
+
+        let adminState = {
+            isAuthenticated: false,
+            password: 'admin123'
+        };
+
+        const audio = {
+            synth: null,
+            init() {
+                if (!this.synth && typeof Tone !== 'undefined') {
+                    this.synth = new Tone.Synth().toDestination();
+                }
+            },
+            playWhistle() {
+                try {
+                    this.init();
+                    const now = Tone.now();
+                    const osc = new Tone.Oscillator(1200, "sine").toDestination();
+                    osc.start(now).stop(now + 0.3);
+                } catch(e) {}
+            },
+            playKick() {
+                try {
+                    this.init();
+                    const mem = new Tone.MembraneSynth().toDestination();
+                    mem.triggerAttackRelease("C1", "8n");
+                } catch(e) {}
+            },
+            playGoal() {
+                try {
+                    this.init();
+                    const now = Tone.now();
+                    const poly = new Tone.PolySynth().toDestination();
+                    poly.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n", now);
+                } catch(e) {}
+            },
+            playMiss() {
+                try {
+                    this.init();
+                    const now = Tone.now();
+                    const poly = new Tone.PolySynth().toDestination();
+                    poly.triggerAttackRelease(["A3", "F3"], "4n", now);
+                } catch(e) {}
+            }
+        };
+
+        let scene, camera, renderer;
+        let soccerBall, goalkeeper, goalMesh, netMesh;
+        let ballRadius = 0.35;
+        let isBallInMotion = false;
+        let ballVelocity = new THREE.Vector3();
+        let ballInitialPos = new THREE.Vector3(0, 0.35, 6);
+        let keeperInitialPos = new THREE.Vector3(0, 1.0, -8);
+        let keeperTargetX = 0;
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0f1d);
+            scene.fog = new THREE.FogExp2(0x0a0f1d, 0.025);
+
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 2.2, 9.5);
+            camera.lookAt(0, 1.5, -8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const stadiumSpotlight1 = new THREE.SpotLight(0xffffff, 1.2);
+            stadiumSpotlight1.position.set(-10, 15, 5);
+            stadiumSpotlight1.castShadow = true;
+            scene.add(stadiumSpotlight1);
+
+            const stadiumSpotlight2 = new THREE.SpotLight(0xffe699, 1.0);
+            stadiumSpotlight2.position.set(10, 15, 5);
+            scene.add(stadiumSpotlight2);
+
+            // Stadium Field (Turf)
+            const turfGeometry = new THREE.PlaneGeometry(30, 40);
+            const turfMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x15803d, 
+                roughness: 0.8 
+            });
+            const turf = new THREE.Mesh(turfGeometry, turfMaterial);
+            turf.rotation.x = -Math.PI / 2;
+            turf.receiveShadow = true;
+            scene.add(turf);
+
+            // Penalty Area White Line markings
+            const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pLine1 = new THREE.Mesh(new THREE.PlaneGeometry(12, 0.15), lineMat);
+            pLine1.rotation.x = -Math.PI / 2;
+            pLine1.position.set(0, 0.01, -2);
+            scene.add(pLine1);
+
+            // Goal Post Setup (Width: 6m, Height: 2.5m)
+            const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+            const leftPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.6), postMat);
+            leftPost.position.set(-3, 1.3, -8);
+            scene.add(leftPost);
+
+            const rightPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.6), postMat);
+            rightPost.position.set(3, 1.3, -8);
+            scene.add(rightPost);
+
+            const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6.1), postMat);
+            crossbar.rotation.z = Math.PI / 2;
+            crossbar.position.set(0, 2.6, -8);
+            scene.add(crossbar);
+
+            // Goal Net Graphic Mesh
+            const netGeo = new THREE.PlaneGeometry(6, 2.6, 12, 8);
+            const netMat = new THREE.MeshBasicMaterial({ 
+                color: 0xe2e8f0, 
+                wireframe: true, 
+                transparent: true, 
+                opacity: 0.4 
+            });
+            netMesh = new THREE.Mesh(netGeo, netMat);
+            netMesh.position.set(0, 1.3, -8.2);
+            scene.add(netMesh);
+
+            // Soccer Ball creation
+            const ballGeo = new THREE.SphereGeometry(ballRadius, 32, 32);
+            
+            // Generate basic soccer patch texture on canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0,0,256,256);
+            ctx.fillStyle = '#000000';
+            for(let i=0; i<6; i++){
+                ctx.beginPath();
+                ctx.arc((i%3)*90 + 40, Math.floor(i/3)*120 + 60, 25, 0, Math.PI*2);
+                ctx.fill();
+            }
+            const ballTex = new THREE.CanvasTexture(canvas);
+            const ballMat = new THREE.MeshStandardMaterial({ map: ballTex, roughness: 0.3 });
+            soccerBall = new THREE.Mesh(ballGeo, ballMat);
+            soccerBall.castShadow = true;
+            scene.add(soccerBall);
+
+            // Goalkeeper Assembly
+            goalkeeper = new THREE.Group();
+            
+            // Body
+            const bodyGeo = new THREE.CylinderGeometry(0.35, 0.3, 1.1, 16);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xeab308 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.55;
+            goalkeeper.add(body);
+
+            // Head
+            const headGeo = new THREE.SphereGeometry(0.22, 16, 16);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xfbd5a5 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.3;
+            goalkeeper.add(head);
+
+            // Arms
+            const armMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+            const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.7, 0.15), armMat);
+            leftArm.position.set(-0.45, 0.7, 0);
+            leftArm.rotation.z = 0.3;
+            goalkeeper.add(leftArm);
+
+            const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.7, 0.15), armMat);
+            rightArm.position.set(0.45, 0.7, 0);
+            rightArm.rotation.z = -0.3;
+            goalkeeper.add(rightArm);
+
+            goalkeeper.castShadow = true;
+            scene.add(goalkeeper);
+
+            resetBallAndKeeper();
+
+            window.addEventListener('resize', onWindowResize, false);
+            setupSwipeListeners();
+            animate();
+        }
+
+        function resetBallAndKeeper() {
+            soccerBall.position.copy(ballInitialPos);
+            soccerBall.rotation.set(0, 0, 0);
+            isBallInMotion = false;
+            ballVelocity.set(0, 0, 0);
+
+            goalkeeper.position.copy(keeperInitialPos);
+            goalkeeper.rotation.set(0, 0, 0);
+            keeperTargetX = 0;
+            gameState.isShotTaken = false;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+
+        function setupSwipeListeners() {
+            const canvasEl = renderer.domElement;
+
+            const handleStart = (x, y) => {
+                if (gameState.isShotTaken || isBallInMotion) return;
+                touchStartX = x;
+                touchStartY = y;
+                touchStartTime = performance.now();
+            };
+
+            const handleEnd = (x, y) => {
+                if (gameState.isShotTaken || isBallInMotion) return;
+                const deltaX = x - touchStartX;
+                const deltaY = y - touchStartY;
+                const duration = Math.max((performance.now() - touchStartTime) / 1000, 0.1);
+
+                // Require minimum upward swipe gesture
+                if (deltaY < -20 && duration < 1.2) {
+                    audio.playKick();
+                    gameState.isShotTaken = true;
+                    isBallInMotion = true;
+
+                    // Calculate speed based on swipe speed/distance
+                    const speed = Math.min(Math.max(Math.abs(deltaY) / duration / 25, 14), 22);
+
+                    // ACCURATE & BALANCED AIMING
+                    const targetX = Math.max(-3.2, Math.min(3.2, (deltaX / 160) * 2.2));
+                    
+                    // Goal line distance: 14m (from z = 6.0 to z = -8.0)
+                    const travelTime = 14 / speed;
+                    
+                    // Velocity X needed to hit targetX
+                    const velX = targetX / travelTime;
+                    
+                    // Target height (Y) clamped cleanly within goal frame height (0.6m to 2.3m)
+                    const targetY = Math.min(Math.max((-deltaY / 180) * 1.5 + 0.8, 0.6), 2.3);
+                    const velY = (targetY / travelTime) + (0.5 * 9.8 * travelTime);
+
+                    ballVelocity.set(velX, velY, -speed);
+
+                    // Goalkeeper AI Decision (Balanced Medium difficulty)
+                    const willDiveCorrectly = Math.random() < 0.45; // 45% chance to guess side
+                    if (willDiveCorrectly) {
+                        keeperTargetX = Math.min(Math.max(targetX * 0.7, -2.2), 2.2);
+                    } else {
+                        // Keeper dives wrong direction or stays near center
+                        const diveDir = targetX > 0 ? -1 : 1;
+                        keeperTargetX = diveDir * (0.8 + Math.random() * 1.0);
+                    }
+                }
+            };
+
+            // Touch events
+            canvasEl.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) handleStart(e.touches[0].clientX, e.touches[0].clientY);
+            });
+            canvasEl.addEventListener('touchend', (e) => {
+                if (e.changedTouches.length > 0) handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+            });
+
+            // Mouse drag events
+            canvasEl.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+            canvasEl.addEventListener('mouseup', (e) => handleEnd(e.clientX, e.clientY));
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isBallInMotion) {
+                // Ball Movement Physics
+                soccerBall.position.x += ballVelocity.x * 0.016;
+                soccerBall.position.y += ballVelocity.y * 0.016;
+                soccerBall.position.z += ballVelocity.z * 0.016;
+
+                // Gravity effect
+                ballVelocity.y -= 9.8 * 0.016;
+
+                // Ball Rotation
+                soccerBall.rotation.x += 0.2;
+
+                // Goalkeeper AI Dive Movement towards keeperTargetX
+                if (Math.abs(goalkeeper.position.x - keeperTargetX) > 0.1) {
+                    goalkeeper.position.x += (keeperTargetX - goalkeeper.position.x) * 0.12;
+                    goalkeeper.rotation.z = -(keeperTargetX - goalkeeper.position.x) * 0.2;
+                }
+
+                // Check goal line arrival (z = -8.0)
+                if (soccerBall.position.z <= -8.0) {
+                    isBallInMotion = false;
+                    evaluateShotOutcome();
+                }
+
+                // Ground bounce check
+                if (soccerBall.position.y <= ballRadius) {
+                    soccerBall.position.y = ballRadius;
+                    ballVelocity.y = -ballVelocity.y * 0.4;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function evaluateShotOutcome() {
+            const bx = soccerBall.position.x;
+            const by = soccerBall.position.y;
+            const kx = goalkeeper.position.x;
+
+            const isInsideGoal = (bx >= -2.85 && bx <= 2.85 && by >= 0.35 && by <= 2.5);
+            const isSavedByKeeper = Math.abs(bx - kx) < 1.15 && by < 2.2;
+
+            const banner = document.getElementById('shot-result-banner');
+            banner.classList.remove('hidden', 'text-emerald-400', 'text-rose-400', 'border-emerald-500', 'border-rose-500');
+
+            if (isInsideGoal && !isSavedByKeeper) {
+                gameState.lastShotScored = true;
+                gameState.goalsScored++;
+                audio.playGoal();
+                banner.classList.add('text-emerald-400', 'border-emerald-500');
+                banner.innerHTML = `<i class="fa-solid fa-futbol mr-2"></i> GOAL SCORED! (2x MULTIPLIER UNLOCKED)`;
+            } else {
+                gameState.lastShotScored = false;
+                audio.playMiss();
+                banner.classList.add('text-rose-400', 'border-rose-500');
+                banner.innerHTML = isSavedByKeeper ? 
+                    `<i class="fa-solid fa-hand-halo mr-2"></i> SAVED BY GOALKEEPER!` : 
+                    `<i class="fa-solid fa-circle-xmark mr-2"></i> SHOT MISSED!`;
+            }
+
+            banner.classList.remove('hidden');
+
+            setTimeout(() => {
+                banner.classList.add('hidden');
+                openQuizModal();
+            }, 1800);
+        }
+
+        function openQuizModal() {
+            const quizModal = document.getElementById('modal-quiz');
+            const quizData = MANDARIN_QUIZ[gameState.currentRound];
+
+            const quizStatusBadge = document.getElementById('quiz-shot-status');
+            const multiplierBadge = document.getElementById('multiplier-badge');
+
+            if (gameState.lastShotScored) {
+                quizStatusBadge.className = "px-3 py-1 rounded-full text-xs font-extrabold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+                quizStatusBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> GOAL SCORED!`;
+                multiplierBadge.innerHTML = `SCORE MULTIPLIER: <span class="text-3xl text-emerald-400 font-extrabold">2x</span>`;
+            } else {
+                quizStatusBadge.className = "px-3 py-1 rounded-full text-xs font-extrabold tracking-wider uppercase bg-slate-700/50 text-slate-300 border border-slate-600";
+                quizStatusBadge.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> NO GOAL`;
+                multiplierBadge.innerHTML = `SCORE MULTIPLIER: <span class="text-2xl text-slate-400">1x</span>`;
+            }
+
+            // Display target sentence translation in English
+            document.getElementById('quiz-translation-text').innerText = `"${quizData.translation}"`;
+
+            // Render crisp, embedded vector SVG illustration
+            document.getElementById('quiz-illustration-container').innerHTML = `
+                <div class="p-2 bg-slate-950/80 rounded-2xl border border-amber-400/40 flex items-center justify-center shadow-lg mb-2">
+                    ${quizData.svgIcon}
+                </div>
+                <div class="text-xs text-slate-200 text-center font-semibold bg-slate-950/80 px-3 py-1 rounded-full border border-slate-800">
+                    Activity: <span class="text-yellow-400 font-bold">${quizData.targetActivity}</span> (${quizData.pinyinActivity})
+                </div>
+            `;
+
+            let allTokens = [...quizData.tokens];
+            quizData.distractors.forEach(d => allTokens.push(d));
+            allTokens = shuffleArray(allTokens);
+
+            gameState.userConstructedSentence = [];
+            renderWordPool(allTokens);
+            renderDropzone();
+
+            quizModal.classList.remove('hidden');
+        }
+
+        function renderWordPool(tokens) {
+            const poolContainer = document.getElementById('word-pool');
+            poolContainer.innerHTML = '';
+
+            tokens.forEach((tokenObj) => {
+                const btn = document.createElement('button');
+                btn.className = "glass-panel hover:bg-yellow-500/20 border-yellow-500/40 px-3.5 py-2 rounded-xl text-center transform active:scale-95 transition-all flex flex-col items-center justify-center min-w-[65px] cursor-pointer shadow-md";
+                btn.onclick = () => selectWord(tokenObj, btn);
+                btn.innerHTML = `
+                    <span class="text-[10px] text-yellow-300 font-mono leading-none mb-0.5">${tokenObj.pinyin}</span>
+                    <span class="text-base font-bold text-white leading-none">${tokenObj.hanzi}</span>
+                `;
+                poolContainer.appendChild(btn);
+            });
+        }
+
+        function selectWord(tokenObj, btnElement) {
+            btnElement.disabled = true;
+            btnElement.classList.add('opacity-30', 'pointer-events-none');
+            gameState.userConstructedSentence.push({ ...tokenObj, el: btnElement });
+            renderDropzone();
+        }
+
+        function renderDropzone() {
+            const dropzone = document.getElementById('answer-dropzone');
+            dropzone.innerHTML = '';
+
+            if (gameState.userConstructedSentence.length === 0) {
+                dropzone.innerHTML = `<span id="placeholder-text" class="text-slate-500 italic text-xs">Tap word blocks below to form the sentence...</span>`;
+                return;
+            }
+
+            gameState.userConstructedSentence.forEach((item, index) => {
+                const chip = document.createElement('div');
+                chip.className = "bg-yellow-500 text-slate-950 px-3 py-1.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-pointer shadow-md transform hover:scale-105 transition-all";
+                chip.onclick = () => removeWordFromSentence(index);
+                chip.innerHTML = `
+                    <span class="text-[9px] text-slate-900 font-mono leading-none mb-0.5">${item.pinyin}</span>
+                    <span class="text-sm font-extrabold leading-none">${item.hanzi}</span>
+                `;
+                dropzone.appendChild(chip);
+            });
+        }
+
+        function removeWordFromSentence(index) {
+            const removed = gameState.userConstructedSentence.splice(index, 1)[0];
+            if (removed && removed.el) {
+                removed.el.disabled = false;
+                removed.el.classList.remove('opacity-30', 'pointer-events-none');
+            }
+            renderDropzone();
+        }
+
+        function resetWordSelection() {
+            while (gameState.userConstructedSentence.length > 0) {
+                removeWordFromSentence(0);
+            }
+        }
+
+        function submitQuizAnswer() {
+            const currentQuiz = MANDARIN_QUIZ[gameState.currentRound];
+            const userHanziArray = gameState.userConstructedSentence.map(i => i.hanzi);
+            const correctHanziArray = currentQuiz.fullSentence;
+
+            const isCorrect = JSON.stringify(userHanziArray) === JSON.stringify(correctHanziArray);
+
+            let roundPoints = 0;
+            if (isCorrect) {
+                gameState.correctQuizCount++;
+                const baseScore = 10;
+                const multiplier = gameState.lastShotScored ? 2 : 1;
+                roundPoints = baseScore * multiplier;
+                gameState.score += roundPoints;
+
+                audio.playGoal();
+                showTemporaryToast(`GREAT JOB! CORRECT! +${roundPoints} PTS`, 'success');
+            } else {
+                audio.playMiss();
+                showTemporaryToast(`NOT QUITE! TRY AGAIN! +0 PTS`, 'error');
+            }
+
+            document.getElementById('hud-score').innerText = gameState.score;
+            document.getElementById('modal-quiz').classList.add('hidden');
+            gameState.currentRound++;
+
+            if (gameState.currentRound < MANDARIN_QUIZ.length) {
+                document.getElementById('hud-round').innerText = gameState.currentRound + 1;
+                resetBallAndKeeper();
+            } else {
+                finishMatch();
+            }
+        }
+
+        function showTemporaryToast(msg, type) {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-20 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-2xl font-bold text-sm shadow-xl glass-panel border ${
+                type === 'success' ? 'text-emerald-400 border-emerald-500' : 'text-rose-400 border-rose-500'
+            }`;
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        function initTeamSelector() {
+            const container = document.getElementById('team-selector');
+            container.innerHTML = '';
+            TEAMS.forEach(team => {
+                const card = document.createElement('div');
+                card.className = `p-2.5 rounded-xl border cursor-pointer text-center transition-all flex flex-col items-center justify-center ${
+                    gameState.selectedTeam.id === team.id ? 'bg-yellow-500/20 border-yellow-400 glow-gold' : 'bg-slate-900/60 border-slate-800 hover:border-slate-600'
+                }`;
+                card.onclick = () => {
+                    gameState.selectedTeam = team;
+                    initTeamSelector();
+                };
+                card.innerHTML = `
+                    <span class="text-2xl">${team.flag}</span>
+                    <span class="text-xs font-bold text-slate-200 mt-1">${team.name}</span>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function startGame(e) {
+            if (e) e.preventDefault();
+            const nameInput = document.getElementById('input-player-name').value.trim();
+
+            if (!nameInput) return;
+
+            // Enable Tone Audio context if available
+            if (typeof Tone !== 'undefined' && Tone.start) {
+                try { await Tone.start(); } catch(err) {}
+            }
+
+            gameState.playerName = nameInput;
+            gameState.currentRound = 0;
+            gameState.score = 0;
+            gameState.goalsScored = 0;
+            gameState.correctQuizCount = 0;
+
+            document.getElementById('hud-player-name').innerText = gameState.playerName;
+            document.getElementById('hud-team-name').innerText = gameState.selectedTeam.name;
+            document.getElementById('hud-flag').innerText = gameState.selectedTeam.flag;
+            document.getElementById('hud-score').innerText = '0';
+            document.getElementById('hud-round').innerText = '1';
+
+            document.getElementById('modal-register').classList.add('hidden');
+            document.getElementById('hud-top').classList.remove('hidden');
+            document.getElementById('hud-bottom').classList.remove('hidden');
+            document.getElementById('swipe-instruction').classList.remove('hidden');
+
+            audio.playWhistle();
+            resetBallAndKeeper();
+        }
+
+        function finishMatch() {
+            document.getElementById('hud-top').classList.add('hidden');
+            document.getElementById('hud-bottom').classList.add('hidden');
+            document.getElementById('swipe-instruction').classList.add('hidden');
+
+            document.getElementById('summary-player').innerText = gameState.playerName;
+            document.getElementById('summary-team').innerText = `${gameState.selectedTeam.flag} ${gameState.selectedTeam.name}`;
+            document.getElementById('summary-goals').innerText = `${gameState.goalsScored} / 5`;
+            document.getElementById('summary-quiz').innerText = `${gameState.correctQuizCount} / 5`;
+            document.getElementById('summary-final-score').innerText = gameState.score;
+
+            const matchRecord = {
+                playerName: gameState.playerName,
+                team: `${gameState.selectedTeam.flag} ${gameState.selectedTeam.name}`,
+                goals: `${gameState.goalsScored}/5`,
+                accuracy: `${gameState.correctQuizCount}/5`,
+                score: gameState.score,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+            gameState.leaderboard.unshift(matchRecord);
+            updateAdminScoreboardTable();
+
+            document.getElementById('modal-gameover').classList.remove('hidden');
+
+            sendScoreToGoogleSheet();
+        }
+
+        function sendScoreToGoogleSheet() {
+            const statusEl = document.getElementById('sync-status');
+            if (!gameState.webhookUrl) {
+                statusEl.innerHTML = `<span class="text-slate-500"><i class="fa-solid fa-circle-check"></i> Match complete! Saved to local admin board.</span>`;
+                return;
+            }
+
+            statusEl.innerHTML = `<span class="text-yellow-400"><i class="fa-solid fa-spinner fa-spin"></i> Auto-syncing score to Google Sheet...</span>`;
+
+            const payload = {
+                playerName: gameState.playerName,
+                team: gameState.selectedTeam.name,
+                score: gameState.score,
+                goals: gameState.goalsScored,
+                accuracy: `${gameState.correctQuizCount}/5`
+            };
+
+            fetch(gameState.webhookUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(() => {
+                statusEl.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-circle-check"></i> Score successfully synced to Live Google Sheet!</span>`;
+            }).catch(() => {
+                statusEl.innerHTML = `<span class="text-rose-400"><i class="fa-solid fa-triangle-exclamation"></i> Sheet sync failed. Check Webhook URL in Admin panel.</span>`;
+            });
+        }
+
+        function openAdminModal() {
+            document.getElementById('modal-admin').classList.remove('hidden');
+            if (!adminState.isAuthenticated) {
+                document.getElementById('admin-auth-view').classList.remove('hidden');
+                document.getElementById('admin-dashboard-view').classList.add('hidden');
+                document.getElementById('input-admin-pass').value = '';
+                document.getElementById('admin-error-msg').classList.add('hidden');
+            } else {
+                showAdminDashboard();
+            }
+        }
+
+        function closeAdminModal() {
+            document.getElementById('modal-admin').classList.add('hidden');
+        }
+
+        function verifyAdminPassword(e) {
+            e.preventDefault();
+            const passInput = document.getElementById('input-admin-pass').value;
+            if (passInput === adminState.password) {
+                adminState.isAuthenticated = true;
+                showAdminDashboard();
+            } else {
+                document.getElementById('admin-error-msg').classList.remove('hidden');
+            }
+        }
+
+        function showAdminDashboard() {
+            document.getElementById('admin-auth-view').classList.add('hidden');
+            document.getElementById('admin-dashboard-view').classList.remove('hidden');
+            document.getElementById('admin-webhook-url').value = gameState.webhookUrl || '';
+            updateAdminScoreboardTable();
+        }
+
+        function saveAdminWebhook() {
+            const url = document.getElementById('admin-webhook-url').value.trim();
+            gameState.webhookUrl = url;
+            showTemporaryToast(url ? 'Google Sheet Webhook saved!' : 'Webhook cleared!', 'success');
+        }
+
+        function updateAdminScoreboardTable() {
+            const tbody = document.getElementById('admin-scoreboard-body');
+            document.getElementById('admin-record-count').innerText = gameState.leaderboard.length;
+
+            if (gameState.leaderboard.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">No games played yet in this session.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = gameState.leaderboard.map(rec => `
+                <tr class="hover:bg-slate-900/50">
+                    <td class="p-2.5 font-bold text-white">${rec.playerName}</td>
+                    <td class="p-2.5 text-slate-300">${rec.team}</td>
+                    <td class="p-2.5 text-center text-emerald-400 font-semibold">${rec.goals}</td>
+                    <td class="p-2.5 text-center text-amber-400 font-semibold">${rec.accuracy}</td>
+                    <td class="p-2.5 text-right font-stadium text-lg font-bold text-yellow-400">${rec.score}</td>
+                </tr>
+            `).join('');
+        }
+
+        function clearAdminScoreboard() {
+            gameState.leaderboard = [];
+            updateAdminScoreboardTable();
+            showTemporaryToast('Scoreboard cleared!', 'success');
+        }
+
+        function restartMatch() {
+            document.getElementById('modal-gameover').classList.add('hidden');
+            document.getElementById('modal-register').classList.remove('hidden');
+        }
+
+        function openSheetModal() {
+            document.getElementById('modal-sheet-setup').classList.remove('hidden');
+        }
+
+        function closeSheetModal() {
+            document.getElementById('modal-sheet-setup').classList.add('hidden');
+        }
+
+        function copyAppsScriptCode() {
+            const codeText = document.getElementById('apps-script-code').innerText;
+            const tempInput = document.createElement('textarea');
+            tempInput.value = codeText;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showTemporaryToast('Apps Script Code copied to clipboard!', 'success');
+        }
+
+        function shuffleArray(array) {
+            let arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[i], arr[j]];
+            }
+            return arr;
+        }
+
+        window.onload = function() {
+            initTeamSelector();
+            init3D();
+        };
+    </script>
+</body>
+</html>
